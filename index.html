@@ -374,6 +374,26 @@
                 padding: 1rem;
             }
         }
+
+        .auth-container {
+            background-color: var(--darker);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            border-top: 4px solid #5865F2;
+            position: relative;
+        }
+
+        .auth-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, var(--italian-green), var(--italian-white), var(--italian-red));
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -537,6 +557,189 @@
     </div>
     
     <script>
+        // Variabili OAuth2 Discord
+        const clientId = '1368372654259835021'; // Sostituisci con il tuo Client ID Discord
+        const redirectUri = encodeURIComponent(window.location.href);
+        const scope = 'identify';
+        
+        // Dati utente Discord
+        let discordUserData = null;
+        
+        // Verifica se l'utente ha già effettuato l'autenticazione
+        function checkAuth() {
+            // Controlla se c'è un token nell'URL (callback da Discord)
+            const urlParams = new URLSearchParams(window.location.hash.substring(1));
+            const accessToken = urlParams.get('access_token');
+            
+            if (accessToken) {
+                // Rimuovi il token dall'URL per sicurezza
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Salva il token nel localStorage
+                localStorage.setItem('discord_token', accessToken);
+                
+                // Ottieni i dati dell'utente
+                fetchDiscordUserData(accessToken);
+            } else {
+                // Controlla se c'è un token nel localStorage
+                const storedToken = localStorage.getItem('discord_token');
+                if (storedToken) {
+                    fetchDiscordUserData(storedToken);
+                } else {
+                    // Mostra il pulsante di login
+                    showLoginButton();
+                }
+            }
+        }
+        
+        // Ottieni i dati dell'utente Discord
+        function fetchDiscordUserData(token) {
+            fetch('https://discord.com/api/users/@me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Token non valido o scaduto
+                    throw new Error('Token scaduto o non valido');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Salva i dati dell'utente
+                discordUserData = data;
+                
+                // Mostra i dati dell'utente e sblocca il form
+                displayUserInfo(data);
+            })
+            .catch(error => {
+                console.error('Errore autenticazione Discord:', error);
+                localStorage.removeItem('discord_token');
+                showLoginButton();
+            });
+        }
+        
+        // Mostra il pulsante di login Discord
+        function showLoginButton() {
+            // Crea un contenitore per l'autenticazione
+            const authContainer = document.createElement('div');
+            authContainer.className = 'auth-container form-container glow-effect';
+            authContainer.style.marginBottom = '20px';
+            authContainer.style.textAlign = 'center';
+            authContainer.style.padding = '2rem';
+            
+            // Titolo
+            const authTitle = document.createElement('h2');
+            authTitle.className = 'section-title';
+            authTitle.innerHTML = '<i class="fab fa-discord"></i> Autenticazione Discord';
+            
+            // Paragrafo informativo
+            const authInfo = document.createElement('p');
+            authInfo.style.marginBottom = '20px';
+            authInfo.textContent = 'Per proseguire con la candidatura, devi verificarti con il tuo account Discord.';
+            
+            // Pulsante login
+            const loginButton = document.createElement('button');
+            loginButton.type = 'button';
+            loginButton.className = 'btn';
+            loginButton.style.backgroundColor = '#5865F2';
+            loginButton.innerHTML = '<i class="fab fa-discord"></i> Accedi con Discord';
+            loginButton.onclick = redirectToDiscordAuth;
+            
+            // Aggiungi elementi al contenitore
+            authContainer.appendChild(authTitle);
+            authContainer.appendChild(authInfo);
+            authContainer.appendChild(loginButton);
+            
+            // Inserisci prima del form
+            const formContainer = document.getElementById('streamerForm');
+            formContainer.parentNode.insertBefore(authContainer, formContainer);
+            
+            // Nascondi il form finché l'utente non si è autenticato
+            formContainer.style.display = 'none';
+        }
+        
+        // Reindirizza a Discord per l'autenticazione
+        function redirectToDiscordAuth() {
+            const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+            window.location.href = authUrl;
+        }
+        
+        // Mostra i dati dell'utente autenticato
+        function displayUserInfo(userData) {
+            // Controlla se esiste già un contenitore per l'autenticazione
+            let authContainer = document.querySelector('.auth-container');
+            if (!authContainer) {
+                authContainer = document.createElement('div');
+                authContainer.className = 'auth-container form-container glow-effect';
+                authContainer.style.marginBottom = '20px';
+                authContainer.style.padding = '1.5rem';
+                
+                // Inserisci prima del form
+                const formContainer = document.getElementById('streamerForm');
+                formContainer.parentNode.insertBefore(authContainer, formContainer);
+            }
+            
+            // Svuota il contenitore
+            authContainer.innerHTML = '';
+            
+            // Titolo
+            const authTitle = document.createElement('h2');
+            authTitle.className = 'section-title';
+            authTitle.innerHTML = '<i class="fab fa-discord"></i> Autenticazione Discord';
+            authContainer.appendChild(authTitle);
+            
+            // Contenitore info utente
+            const userInfoContainer = document.createElement('div');
+            userInfoContainer.style.display = 'flex';
+            userInfoContainer.style.alignItems = 'center';
+            userInfoContainer.style.marginBottom = '15px';
+            
+            // Avatar utente
+            if (userData.avatar) {
+                const userAvatar = document.createElement('img');
+                userAvatar.src = `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png`;
+                userAvatar.alt = 'Avatar Discord';
+                userAvatar.style.width = '50px';
+                userAvatar.style.height = '50px';
+                userAvatar.style.borderRadius = '50%';
+                userAvatar.style.marginRight = '15px';
+                userInfoContainer.appendChild(userAvatar);
+            }
+            
+            // Info utente
+            const userInfo = document.createElement('div');
+            userInfo.innerHTML = `
+                <p><strong>Username:</strong> ${userData.username}</p>
+                <p><strong>ID:</strong> ${userData.id}</p>
+            `;
+            userInfoContainer.appendChild(userInfo);
+            
+            // Pulsante logout
+            const logoutButton = document.createElement('button');
+            logoutButton.type = 'button';
+            logoutButton.className = 'btn';
+            logoutButton.style.marginLeft = 'auto';
+            logoutButton.style.backgroundColor = '#f04747';
+            logoutButton.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+            logoutButton.onclick = function() {
+                localStorage.removeItem('discord_token');
+                discordUserData = null;
+                location.reload();
+            };
+            userInfoContainer.appendChild(logoutButton);
+            
+            authContainer.appendChild(userInfoContainer);
+            
+            // Mostra il form
+            document.getElementById('streamerForm').style.display = 'block';
+            
+            // Compila automaticamente il campo Discord
+            document.getElementById('discord').value = `${userData.username}#${userData.discriminator || '0000'}`;
+            document.getElementById('discord').readOnly = true;
+        }
+    
         // Set the logo from the image shown in the message
         document.addEventListener('DOMContentLoaded', function() {
             // Replace the placeholder with the actual FivePD logo URL
@@ -626,6 +829,12 @@
             
             // Validazione dei campi
             function validateForm() {
+                // Verifica se l'utente è autenticato con Discord
+                if (!discordUserData) {
+                    showAlert('Devi autenticarti con Discord prima di inviare la candidatura.', 'error');
+                    return false;
+                }
+                
                 let isValid = true;
                 const requiredFields = form.querySelectorAll('[required]');
                 
@@ -694,10 +903,16 @@
                 
                 // Prepare Discord embed
                 const embed = {
+                    content: "<@&1315426528632508549>", // Tag del ruolo
                     embeds: [
                         {
                             title: "Nuova Candidatura Streamer FivePD",
                             color: 3447003, // Colore blu
+                            author: {
+                                name: `${discordUserData.username}`,
+                                icon_url: discordUserData.avatar ? `https://cdn.discordapp.com/avatars/${discordUserData.id}/${discordUserData.avatar}.png` : null
+                            },
+                            description: `**Candidatura inviata da:** <@${discordUserData.id}> (ID: ${discordUserData.id})`,
                             fields: [
                                 {
                                     name: "Nome / Nickname",
@@ -709,7 +924,7 @@
                                 },
                                 {
                                     name: "Discord",
-                                    value: document.getElementById('discord').value
+                                    value: `${discordUserData.username}#${discordUserData.discriminator || '0000'} (<@${discordUserData.id}>)`
                                 },
                                 {
                                     name: "Nazionalità",
@@ -795,7 +1010,7 @@
                         value: other
                     });
                 }
-    
+        
                 // Send data to Discord webhook
                 fetch(webhookUrl, {
                     method: 'POST',
@@ -825,6 +1040,9 @@
                     submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Invia Candidatura';
                 });
             });
+    
+            // Verifica autenticazione all'avvio
+            checkAuth();
         });
     </script>
 </body>
